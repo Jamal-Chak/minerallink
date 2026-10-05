@@ -120,10 +120,25 @@ model Supplier {
   website            String?
   notes              String?
 
+  // Phase 6: workflow metadata previously held only in the browser workspace.
+  outreachStatus     SupplierOutreachStatus @default(NOT_CONTACTED)
+  source             String                 @default("Unspecified")
+  isDemoFixture      Boolean                @default(false)
+  supplyCountry      String?
+  loadingLocation    String?
+  availableForExport Boolean                @default(false)
+
   contacts  SupplierContact[]
   products  MineralProduct[]
   documents SupplierDocument[]
   deals     Deal[]
+
+  activities              SupplierActivity[]
+  verificationChecks      SupplierVerificationCheck[]
+  communications          SupplierCommunication[]
+  followUps               SupplierFollowUp[]
+  informationRequests     SupplierInformationRequest[]
+  informationItemStatuses SupplierInformationItemStatus[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -132,6 +147,7 @@ model Supplier {
   @@index([supplierType])
   @@index([verificationStatus])
   @@index([pipelineStatus])
+  @@index([outreachStatus])
 }
 
 model SupplierContact {
@@ -215,12 +231,17 @@ model SupplierDocument {
   supplierId String
   type       DocumentType
   name       String
-  fileUrl    String
+  fileUrl    String?
   reference  String?
   issuedAt   DateTime?
   expiresAt  DateTime?
   verified   Boolean      @default(false)
   notes      String?
+
+  // Phase 6: workspace document metadata (file uploads remain out of scope;
+  // `verified` is the legacy flag and stays for compatibility).
+  status       VerificationStatus @default(UNVERIFIED)
+  storageState String             @default("METADATA_ONLY")
 
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
@@ -322,6 +343,14 @@ model Deal {
 
   status DealStatus @default(NEW)
 
+  // Phase 6: deal metadata previously held only in the browser workspace.
+  supplyType          DealSupplyType @default(RECURRING)
+  destination         String?
+  isDemoFixture       Boolean        @default(false)
+  createdFromMatch    Boolean        @default(false)
+  matchResult         Json?
+  matchEvidenceSource String?
+
   quantityMt        Decimal? @db.Decimal(14, 3)
   currency          String?
   pricePerMt        Decimal? @db.Decimal(18, 2)
@@ -337,6 +366,15 @@ model Deal {
 
   product MineralProduct @relation(fields: [productId], references: [id])
 
+  commercialTerms   DealCommercialTerms?
+  negotiationRounds DealNegotiationRound[]
+  introduction      BuyerIntroduction?
+  shipments         DealShipment[]
+  inspections       DealInspectionMilestone[]
+  paymentMilestones DealPaymentMilestone[]
+  commission        DealCommission?
+  activities        DealActivity[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -345,4 +383,478 @@ model Deal {
   @@index([requirementId])
   @@index([productId])
   @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 6 — persistence readiness models.
+// These mirror the Phase 1–5 browser workspace domain. Phase 6 does not write
+// to the database; activation happens in a later phase.
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  SOURCING_MANAGER
+  SOURCING_AGENT
+  VERIFICATION_ANALYST
+  COMMERCIAL_MANAGER
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum SupplierOutreachStatus {
+  NOT_CONTACTED
+  OUTREACH_SENT
+  AWAITING_RESPONSE
+  RESPONDED
+  FOLLOW_UP_REQUIRED
+  IN_DISCUSSION
+  NO_RESPONSE
+  DECLINED
+}
+
+enum CommunicationType {
+  EMAIL
+  PHONE
+  WHATSAPP
+  MEETING
+  OTHER
+}
+
+enum CommunicationDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum FollowUpStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+enum FollowUpPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum InformationItemStatus {
+  NOT_REQUESTED
+  REQUESTED
+  RECEIVED
+  NOT_AVAILABLE
+}
+
+enum VerificationCheckStatus {
+  VERIFIED
+  PENDING
+  MISSING
+  REJECTED
+}
+
+enum SupplierActivityType {
+  SUPPLIER_CREATED
+  CONTACT_ADDED
+  PRODUCT_ADDED
+  ASSAY_RECEIVED
+  DOCUMENT_RECORDED
+  DOCUMENT_VERIFIED
+  CHECK_UPDATED
+  VERIFICATION_CHANGED
+  VERIFICATION_STARTED
+  VERIFICATION_COMPLETED
+  SUPPLIER_REJECTED
+  PIPELINE_CHANGED
+  SUPPLIER_CONTACTED
+  DOCUMENTS_REQUESTED
+  SUPPLIER_QUALIFIED
+  PIPELINE_REJECTED
+  BUYER_MATCH_PERFORMED
+  COMMUNICATION_LOGGED
+  FOLLOW_UP_SCHEDULED
+  FOLLOW_UP_COMPLETED
+  FOLLOW_UP_CANCELLED
+  INFORMATION_REQUESTED
+  INFORMATION_RECEIVED
+  INFORMATION_STATUS_CHANGED
+  OUTREACH_STATUS_CHANGED
+}
+
+enum DealSupplyType {
+  TRIAL
+  RECURRING
+}
+
+enum CommercialValueState {
+  INDICATIVE
+  AGREED
+  ACTUAL
+}
+
+enum InspectionAgency {
+  SGS
+  CCIC
+  OTHER
+}
+
+enum NegotiationParty {
+  SUPPLIER
+  BUYER
+  INTERNAL
+}
+
+enum ShipmentStatus {
+  PLANNED
+  READY_FOR_LOADING
+  LOADED
+  IN_TRANSIT
+  ARRIVED
+  INSPECTION_PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum InspectionStatus {
+  PLANNED
+  PENDING
+  COMPLETED
+  NOT_APPLICABLE
+}
+
+enum InspectionPoint {
+  LOADING_PORT
+  ARRIVAL_FINAL
+}
+
+enum PaymentMilestoneStatus {
+  NOT_DUE
+  DUE
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  ADJUSTMENT_REQUIRED
+  COMPLETED
+}
+
+enum CommissionType {
+  PERCENTAGE
+  FIXED
+}
+
+enum CommissionStatus {
+  NOT_AGREED
+  AGREED
+  EARNED
+  INVOICED
+  PAID
+}
+
+enum DealActivityType {
+  DEAL_CREATED
+  STAGE_CHANGED
+  OFFER_RECORDED
+  COUNTEROFFER_RECORDED
+  BUYER_INTRODUCED
+  CONTRACT_MILESTONE
+  SHIPMENT_CREATED
+  SHIPMENT_UPDATED
+  INSPECTION_RECORDED
+  PAYMENT_MILESTONE_UPDATED
+  COMMISSION_UPDATED
+  DEAL_CLOSED
+}
+
+model User {
+  id    String     @id @default(cuid())
+  email String     @unique
+  name  String
+  role  UserRole   @default(VIEWER)
+  status UserStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@index([status])
+}
+
+model SupplierActivity {
+  id         String               @id @default(cuid())
+  supplierId String
+  type       SupplierActivityType
+  title      String
+  details    String
+  // Actor identifiers carry no FK on purpose: activity rows are append-only
+  // history and must survive user deletion and fixture imports.
+  actorUserId String?
+  actorName   String?
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([supplierId, createdAt])
+  @@index([type])
+}
+
+model SupplierVerificationCheck {
+  id         String                 @id @default(cuid())
+  supplierId String
+  checkKey   String
+  label      String
+  status     VerificationCheckStatus @default(MISSING)
+  note       String?
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([supplierId, checkKey])
+  @@index([status])
+}
+
+model SupplierCommunication {
+  id             String                @id @default(cuid())
+  supplierId     String
+  type           CommunicationType
+  direction      CommunicationDirection
+  // contactId / requirementId are free strings: fixture ids are not rows.
+  contactId      String?
+  requirementId  String?
+  occurredAt     DateTime
+  subject        String
+  summary        String
+  outcome        String?
+  nextAction     String?
+  followUpDate   String?
+  internalNotes  String?
+  deliveryStatus String                @default("NOT_SENT")
+  isDemoFixture  Boolean               @default(false)
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([supplierId, occurredAt])
+  @@index([direction])
+}
+
+model SupplierFollowUp {
+  id                   String           @id @default(cuid())
+  supplierId           String
+  communicationId      String?
+  informationRequestId String?
+  contactId            String?
+  dueAt                DateTime
+  priority             FollowUpPriority @default(MEDIUM)
+  owner                String           @default("Unassigned")
+  action               String
+  status               FollowUpStatus   @default(OPEN)
+  completedAt          DateTime?
+  isDemoFixture        Boolean          @default(false)
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([supplierId, dueAt])
+  @@index([status])
+}
+
+model SupplierInformationRequest {
+  id             String  @id @default(cuid())
+  supplierId     String
+  contactId      String?
+  requirementId  String?
+  itemIds        String[]
+  requestedAt    DateTime
+  dueAt          String?
+  internalNote   String?
+  draftMessage   String
+  deliveryStatus String  @default("NOT_SENT")
+  isDemoFixture  Boolean @default(false)
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([supplierId])
+}
+
+model SupplierInformationItemStatus {
+  id         String                @id @default(cuid())
+  supplierId String
+  itemId     String
+  status     InformationItemStatus @default(NOT_REQUESTED)
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([supplierId, itemId])
+}
+
+model DealCommercialTerms {
+  dealId           String               @id
+  quantityMt       Decimal?             @db.Decimal(14, 3)
+  pricePerMt       Decimal?             @db.Decimal(18, 2)
+  currency         String?
+  incoterm         Incoterm?
+  loadingLocation  String?
+  destinationPort  String?
+  inspectionAgency InspectionAgency?
+  paymentMethod    PaymentMethod?
+  paymentTerms     String?
+  offerValidity    String?
+  deliverySchedule String?
+  packing          String?
+  particleSizeMm   Decimal?             @db.Decimal(10, 3)
+  commercialNotes  String?
+  valueState       CommercialValueState @default(INDICATIVE)
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+}
+
+model DealNegotiationRound {
+  id            String           @id @default(cuid())
+  dealId        String
+  date          String
+  party         NegotiationParty
+  quantityMt    Decimal?         @db.Decimal(14, 3)
+  pricePerMt    Decimal?         @db.Decimal(18, 2)
+  currency      String?
+  incoterm      Incoterm?
+  paymentMethod PaymentMethod?
+  paymentTerms  String?
+  destination   String?
+  comments      String?
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([dealId, date])
+}
+
+model BuyerIntroduction {
+  id                String  @id @default(cuid())
+  dealId            String  @unique
+  introducedAt      String
+  supplierContactId String?
+  buyerContactName  String?
+  buyerContactEmail String?
+  requirementId     String
+  introducedBy      String
+  internalNotes     String?
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([dealId])
+  @@index([requirementId])
+}
+
+model DealShipment {
+  id                    String         @id @default(cuid())
+  dealId                String
+  plannedQuantityMt     Decimal?       @db.Decimal(14, 3)
+  actualQuantityMt      Decimal?       @db.Decimal(14, 3)
+  loadingLocation       String?
+  destinationPort       String?
+  etd                   String?
+  eta                   String?
+  packing               String?
+  inspectionCompany     InspectionAgency?
+  inspectionReference   String?
+  billOfLadingReference String?
+  status                ShipmentStatus @default(PLANNED)
+  notes                 String?
+  isDemoFixture         Boolean        @default(false)
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dealId])
+  @@index([status])
+}
+
+model DealInspectionMilestone {
+  id          String           @id @default(cuid())
+  dealId      String
+  shipmentId  String?
+  point       InspectionPoint
+  agency      InspectionAgency
+  reference   String?
+  date        String?
+  status      InspectionStatus @default(PLANNED)
+  resultNotes String?
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dealId])
+}
+
+model DealPaymentMilestone {
+  id                 String                  @id @default(cuid())
+  dealId             String
+  milestone          String
+  expectedPercentage Decimal?                @db.Decimal(8, 4)
+  expectedAmount     Decimal?                @db.Decimal(18, 2)
+  currency           String?
+  dueDate            String?
+  status             PaymentMilestoneStatus  @default(NOT_DUE)
+  reference          String?
+  notes              String?
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dealId])
+  @@index([status])
+}
+
+model DealCommission {
+  dealId      String           @id
+  type        CommissionType   @default(PERCENTAGE)
+  percentage  Decimal?         @db.Decimal(8, 4)
+  fixedAmount Decimal?         @db.Decimal(18, 2)
+  currency    String?
+  status      CommissionStatus @default(NOT_AGREED)
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+}
+
+model DealActivity {
+  id     String          @id @default(cuid())
+  dealId String
+  type   DealActivityType
+  title  String
+  details String
+  // No FK on actor ids: activity rows are append-only history.
+  actorUserId String?
+  actorName   String?
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([dealId, createdAt])
+  @@index([type])
 }

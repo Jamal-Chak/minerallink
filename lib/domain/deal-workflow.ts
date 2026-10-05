@@ -139,19 +139,21 @@ export interface DealCommission {
   updatedAt: string;
 }
 
-export type DealActivityType =
-  | "DEAL_CREATED"
-  | "STAGE_CHANGED"
-  | "OFFER_RECORDED"
-  | "COUNTEROFFER_RECORDED"
-  | "BUYER_INTRODUCED"
-  | "CONTRACT_MILESTONE"
-  | "SHIPMENT_CREATED"
-  | "SHIPMENT_UPDATED"
-  | "INSPECTION_RECORDED"
-  | "PAYMENT_MILESTONE_UPDATED"
-  | "COMMISSION_UPDATED"
-  | "DEAL_CLOSED";
+export const DEAL_ACTIVITY_TYPES = [
+  "DEAL_CREATED",
+  "STAGE_CHANGED",
+  "OFFER_RECORDED",
+  "COUNTEROFFER_RECORDED",
+  "BUYER_INTRODUCED",
+  "CONTRACT_MILESTONE",
+  "SHIPMENT_CREATED",
+  "SHIPMENT_UPDATED",
+  "INSPECTION_RECORDED",
+  "PAYMENT_MILESTONE_UPDATED",
+  "COMMISSION_UPDATED",
+  "DEAL_CLOSED",
+] as const;
+export type DealActivityType = (typeof DEAL_ACTIVITY_TYPES)[number];
 
 export interface DealActivity {
   id: string;

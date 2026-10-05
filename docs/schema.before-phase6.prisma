@@ -1,0 +1,348 @@
+// MineralLink database schema
+// Njapa Projects Pty Ltd
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SupplierType {
+  MINE
+  PRODUCER
+  PROCESSOR
+  TRADER
+  AGGREGATOR
+}
+
+enum ProductionStatus {
+  OPERATING
+  DEVELOPMENT
+  EXPLORATION
+  SUSPENDED
+  UNKNOWN
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum SupplierPipelineStatus {
+  NEW
+  CONTACTED
+  RESPONDED
+  DOCUMENTS_REQUESTED
+  UNDER_VERIFICATION
+  QUALIFIED
+  REJECTED
+}
+
+enum Commodity {
+  COPPER
+  LEAD
+  ZINC
+  NICKEL
+}
+
+enum ProductType {
+  ORE
+  CONCENTRATE
+  SLAG
+}
+
+enum MineralForm {
+  SULPHIDE
+  OXIDE
+  MIXED
+  UNKNOWN
+}
+
+enum DocumentType {
+  ASSAY_CERTIFICATE
+  MINING_LICENSE
+  EXPORT_LICENSE
+  COMPANY_REGISTRATION
+  SGS_REPORT
+  CCIC_REPORT
+  PRODUCT_PHOTO
+  STOCK_PHOTO
+  OTHER
+}
+
+enum AssaySource {
+  SUPPLIER
+  SGS
+  CCIC
+  LABORATORY
+  OTHER
+}
+
+enum Incoterm {
+  FOB
+  CIF
+}
+
+enum PaymentMethod {
+  TT
+  DLC
+}
+
+enum DealStatus {
+  NEW
+  SUPPLIER_CONTACTED
+  DOCUMENTS_REQUESTED
+  QUALIFICATION
+  BUYER_INTRODUCTION
+  NEGOTIATION
+  CONTRACT
+  TRIAL_SHIPMENT
+  ACTIVE_CONTRACT
+  COMPLETED
+  CANCELLED
+}
+
+model Supplier {
+  id                 String                 @id @default(cuid())
+  companyName        String
+  tradingName        String?
+  country            String
+  supplierType       SupplierType
+  productionStatus   ProductionStatus       @default(UNKNOWN)
+  verificationStatus VerificationStatus     @default(UNVERIFIED)
+  pipelineStatus     SupplierPipelineStatus @default(NEW)
+  mineOrProjectName  String?
+  website            String?
+  notes              String?
+
+  contacts  SupplierContact[]
+  products  MineralProduct[]
+  documents SupplierDocument[]
+  deals     Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([country])
+  @@index([supplierType])
+  @@index([verificationStatus])
+  @@index([pipelineStatus])
+}
+
+model SupplierContact {
+  id         String  @id @default(cuid())
+  supplierId String
+  name       String
+  jobTitle   String?
+  email      String?
+  phone      String?
+  isPrimary  Boolean @default(false)
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([supplierId])
+}
+
+model MineralProduct {
+  id                  String       @id @default(cuid())
+  supplierId          String
+  name                String
+  commodity           Commodity
+  productType         ProductType
+  mineralForm         MineralForm?
+  availableQuantityMt Decimal?     @db.Decimal(14, 3)
+  monthlyCapacityMt   Decimal?     @db.Decimal(14, 3)
+  trialQuantityMt     Decimal?     @db.Decimal(14, 3)
+  loadingCountry      String
+  loadingLocation     String?
+  availableForExport  Boolean      @default(false)
+  notes               String?
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  assays Assay[]
+  deals  Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([supplierId])
+  @@index([commodity, productType])
+  @@index([loadingCountry])
+}
+
+model Assay {
+  id        String      @id @default(cuid())
+  productId String
+  source    AssaySource @default(SUPPLIER)
+
+  gradePercent   Decimal  @db.Decimal(8, 4)
+  sulphurPercent Decimal? @db.Decimal(8, 4)
+
+  arsenicPercent  Decimal? @db.Decimal(8, 4)
+  chlorinePercent Decimal? @db.Decimal(8, 4)
+  cadmiumPercent  Decimal? @db.Decimal(8, 4)
+  mercuryPercent  Decimal? @db.Decimal(8, 4)
+  fluorinePercent Decimal? @db.Decimal(8, 4)
+  leadPercent     Decimal? @db.Decimal(8, 4)
+  zincPercent     Decimal? @db.Decimal(8, 4)
+
+  particleSizeMm Decimal? @db.Decimal(10, 3)
+
+  laboratoryName String?
+  certificateRef String?
+  testedAt       DateTime?
+  notes          String?
+
+  product MineralProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([testedAt])
+}
+
+model SupplierDocument {
+  id         String       @id @default(cuid())
+  supplierId String
+  type       DocumentType
+  name       String
+  fileUrl    String
+  reference  String?
+  issuedAt   DateTime?
+  expiresAt  DateTime?
+  verified   Boolean      @default(false)
+  notes      String?
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([supplierId])
+  @@index([type])
+}
+
+model Buyer {
+  id                 String             @id @default(cuid())
+  companyName        String
+  country            String
+  website            String?
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  notes              String?
+
+  contacts     BuyerContact[]
+  requirements BuyerRequirement[]
+  deals        Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BuyerContact {
+  id        String  @id @default(cuid())
+  buyerId   String
+  name      String
+  jobTitle  String?
+  email     String?
+  phone     String?
+  isPrimary Boolean @default(false)
+
+  buyer Buyer @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([buyerId])
+}
+
+model BuyerRequirement {
+  id      String @id @default(cuid())
+  buyerId String
+  title   String
+
+  commodity   Commodity
+  productType ProductType
+
+  minimumGradePercent   Decimal  @db.Decimal(8, 4)
+  minimumSulphurPercent Decimal? @db.Decimal(8, 4)
+
+  maxArsenicPercent      Decimal? @db.Decimal(8, 4)
+  maxChlorinePercent     Decimal? @db.Decimal(8, 4)
+  maxCadmiumPercent      Decimal? @db.Decimal(8, 4)
+  maxMercuryPercent      Decimal? @db.Decimal(8, 4)
+  maxFluorinePercent     Decimal? @db.Decimal(8, 4)
+  maxLeadPercent         Decimal? @db.Decimal(8, 4)
+  maxZincPercent         Decimal? @db.Decimal(8, 4)
+  maxLeadPlusZincPercent Decimal? @db.Decimal(8, 4)
+
+  maximumParticleSizeMm Decimal? @db.Decimal(10, 3)
+
+  acceptedMineralForms MineralForm[]
+
+  trialQuantityMinMt Decimal? @db.Decimal(14, 3)
+  trialQuantityMaxMt Decimal? @db.Decimal(14, 3)
+  monthlyQuantityMt  Decimal  @db.Decimal(14, 3)
+
+  destinationCountry String
+  destinationPorts   String[]
+
+  incoterms          Incoterm[]
+  paymentMethods     PaymentMethod[]
+  inspectionAgencies String[]
+
+  active Boolean @default(true)
+
+  buyer Buyer @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  deals Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([buyerId])
+  @@index([commodity, productType])
+  @@index([active])
+}
+
+model Deal {
+  id            String @id @default(cuid())
+  buyerId       String
+  supplierId    String
+  requirementId String
+  productId     String
+
+  status DealStatus @default(NEW)
+
+  quantityMt        Decimal? @db.Decimal(14, 3)
+  currency          String?
+  pricePerMt        Decimal? @db.Decimal(18, 2)
+  commissionPercent Decimal? @db.Decimal(8, 4)
+  commissionAmount  Decimal? @db.Decimal(18, 2)
+  notes             String?
+
+  buyer Buyer @relation(fields: [buyerId], references: [id])
+
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  requirement BuyerRequirement @relation(fields: [requirementId], references: [id])
+
+  product MineralProduct @relation(fields: [productId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([buyerId])
+  @@index([supplierId])
+  @@index([requirementId])
+  @@index([productId])
+  @@index([status])
+}
