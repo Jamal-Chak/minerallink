@@ -173,13 +173,6 @@ model MineralProduct {
   name                String
   commodity           Commodity
   productType         ProductType
-
-  // Phase 7: supplier-reported specification (grade, sulphur, particle size,
-  // impurities) previously held only in the browser workspace. Stored as JSON
-  // to preserve the exact MineralSpecification domain shape losslessly.
-  // Nullable so the additive Phase 7 migration never rewrites existing rows.
-  specification       Json?
-
   mineralForm         MineralForm?
   availableQuantityMt Decimal?     @db.Decimal(14, 3)
   monthlyCapacityMt   Decimal?     @db.Decimal(14, 3)
